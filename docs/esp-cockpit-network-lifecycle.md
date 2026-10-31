@@ -13,7 +13,7 @@
 
 核心原则是**单一资源所有者、显式生命周期、异步状态机和有界事件传递**。组件不得因提供 Web Portal 而假定自己独占系统网络或全局 ESP-IDF 基础设施。
 
-Wi-Fi 配网和网络配置是可选插件能力，但插件启用规则与资源所有权有明确约束：启用 Wi-Fi 配网即选择托管 Wi-Fi 模式；若应用/其他组件管理 Wi-Fi 或 Ethernet，则选择外部网络模式并禁用组件内置 Wi-Fi 配网和网络管理。配置插件只可修改其拥有或获授权管理的接口。
+Wi-Fi 配网和网络配置是可选插件能力。每个 ESP-Cockpit 实例必须且只能选择托管 Wi-Fi 或外部网络模式之一。Kconfig 决定相关实现是否编译进固件，不替实例选择模式；选择外部网络的实例不得启用或调用组件内置 Wi-Fi 配网和网络管理能力。配置插件只可修改其拥有或获授权管理的接口。
 
 ## 2. 职责边界与资源所有权
 
@@ -22,12 +22,14 @@ Wi-Fi 配网和网络配置是可选插件能力，但插件启用规则与资�
 | NVS Flash、默认事件循环、`esp_netif` 全局初始化 | 确定初始化顺序及全局资源所有者；通常由应用启动代码或平台引导层初始化 | 声明所需前置条件，不盲目重复初始化；若提供托管模式，必须明确依赖、错误处理和所有权契约 |
 | GPIO 按键、LED、屏幕及板级动作 | 识别按键长按、驱动指示器，并调用组件公开的抽象操作 | 提供不依赖 GPIO 的门户启停控制和高阶状态事件 |
 | Wi-Fi 驱动、Wi-Fi netif | 托管模式下满足全局初始化前置条件；外部模式下由应用/网络组件初始化和管理 | 启用 Wi-Fi 配网插件即托管 Wi-Fi；组件创建/管理约定范围内的驱动、接口及连接状态机，不接管外部模式资源 |
+| 托管 Wi-Fi 实例配额 | 遵循每进程单实例约束 | 原子保留并强制执行进程级配额；重复创建返回 `ESP_ERR_INVALID_STATE`，销毁原实例后才释放配额 |
 | Wi-Fi 凭据配置 | 托管模式下提供产品初始 AP 凭据及密码策略；外部模式下由应用/网络管理器管理凭据 | 托管模式下的配网插件负责 STA SSID/Password 配置、验证和提交 |
 | DHCP/静态 IP 配置 | 外部模式下由应用/网络组件配置其拥有的 Wi-Fi 或 Ethernet 接口 | 插件只配置其拥有或被明确授权管理的接口；不修改外部接口参数 |
 | 原生以太网 MAC 与 RMII/MII PHY | 应用/网络组件负责板级接线、PHY 型号配置及相应 ESP-IDF 集成 | 支持清单内带原生 Ethernet MAC 的目标；通过适配器读取状态或注册网络服务，不默认调用 Wi-Fi 专属 API |
 | 外部以太网控制器（例如 SPI Ethernet） | 应用可自行管理其驱动和板级集成 | 当前不属于 ESP-Cockpit 支持范围；若应用自行接入，需由项目另行验证 |
 | 外部 Wi-Fi 协处理器 | 由应用负责驱动和板级集成 | 不属于原生 Wi-Fi 支持清单，需单独评估 |
-| HTTP(S)、WebSocket、JSON-RPC | 提供监听地址、证书等产品配置；外部模式下按约定提供网络就绪状态 | 管理 Web 服务、连接、认证、RPC 分发和静态资源；可观察网络就绪事件，但不得因此启动、停止或重配外部网络接口 |
+| HTTP(S) 监听器、WebSocket、JSON-RPC | 提供监听地址、端口、证书等产品配置，并避免与应用自有服务冲突；外部模式下按约定提供网络就绪状态 | 管理唯一活动的 ESP-Cockpit Web 服务、连接、认证、RPC 分发和静态资源；拒绝本组件内并发监听冲突，且不得因此启动、停止或重配外部网络接口 |
+| 默认事件循环及事件处理器 | 应用拥有并按契约创建/销毁共享默认事件循环；集成时避免重复注册冲突的应用级处理器 | 仅注册、注销本组件拥有的 handler；停止或销毁时不得删除共享事件循环或其他模块的 handler |
 | Captive Portal DNS 与受限 HTTP 门户 | 提供 SoftAP 场景所需配置及安全策略 | 仅在托管配网门户启用期间启停对应 DNS/HTTP 服务，并实施范围限制 |
 | 业务参数、传感器、执行器及具体协议 | 注册状态、参数和回调，执行实际业务操作 | 提供注册、校验、分发、状态通知等通用机制 |
 | 参数持久化 | 应用或显式启用的持久化模块决定哪些参数持久化及其语义 | 不应默认对每次参数写入同步执行 NVS 写入；网络凭据和业务参数的存储职责应分别说明 |
@@ -38,28 +40,149 @@ Wi-Fi 配网和网络配置是可选插件能力，但插件启用规则与资�
 
 这不等于禁止所有组件参与初始化：如果产品选择由托管 Wi-Fi 模块创建某一资源，应通过明确模式、前置状态检查和所有权规则执行，不能无条件重复创建全局资源，也不能在 `stop()` 时销毁应用或其他组件仍在使用的资源。默认事件循环已存在、网络接口已由外部创建等情况都应有定义明确的接入方式。
 
-### 2.2 网络管理模式
+### 2.2 进程级实例与共享资源约束
 
-- **托管 Wi-Fi 模式**：通过 Kconfig 启用 Wi-Fi 配网插件即选择此模式。ESP-Cockpit 管理 Wi-Fi 驱动（按全局初始化契约）、STA/AP netif、SSID/Password 配置、连接和重连状态机；网络配置插件仅操作该模式下由组件拥有的 Wi-Fi 接口。
-- **外部网络模式**：应用/其他网络管理组件已管理 Wi-Fi、Ethernet 或其他网络时选择此模式，并禁用内置 Wi-Fi 配网与网络管理插件。ESP-Cockpit 不创建、切换、停止或重配外部网络资源。
-- 两种模式在同一组件实例中互斥，宜在创建时确定。切换模式需停止并完成资源交接，不得运行中暗自接管。
+- 首版每个进程最多允许创建一个托管 Wi-Fi 模式实例。创建时保留该进程级配额；重复创建应返回明确的状态错误，只有原实例销毁后才释放配额。`stop()` 不释放配额，因为实例仍然存在。
+- HTTP/WebSocket 服务共享监听资源。首版最多允许一个 ESP-Cockpit 实例处于活动服务状态；第二个实例调用 `start()` 时若会造成同一监听地址/端口或服务资源冲突，应返回 `ESP_ERR_INVALID_STATE` 或明确的端口冲突错误，不得覆盖或停止已有服务。停止活动实例后，其他已创建实例才可启动。
+- 对应用或其他组件创建的 HTTP 服务，ESP-Cockpit 无法仅凭自身实例表保证端口不冲突。监听地址/端口由应用配置并负责与外部服务协调；启动时应传播 HTTP Server 的绑定错误，不得伪报成功。
+- 实例配额及活动服务资源必须通过进程级同步机制原子保留，避免并发 `new()`/`start()` 绕过单实例限制；创建或启动失败时回滚本次预留。
+- 默认 `esp_event` loop 等全局设施仍由应用持有。组件 handler 必须按实例独立记录其事件 base、event id 和注册上下文并仅注销自身；不得使用会移除其他模块 handler 的宽泛注销方式，也不得重复创建或销毁全局资源。
+
+### 2.3 网络管理模式
+
+- **托管 Wi-Fi 模式**：实例创建时显式选择。ESP-Cockpit 管理 Wi-Fi 驱动（按全局初始化契约）、STA/AP netif、SSID/Password 配置、连接和重连状态机；网络配置插件仅操作该模式下由组件拥有的 Wi-Fi 接口。选择此模式但固件未编译 Wi-Fi 配网能力时，创建实例应返回 `ESP_ERR_NOT_SUPPORTED`。
+- **外部网络模式**：实例创建时显式选择，适用于应用/其他网络管理组件已管理 Wi-Fi、Ethernet 或其他网络的场景。ESP-Cockpit 不创建、切换、停止或重配外部网络资源；该实例不得启用或调用组件内置 Wi-Fi 配网和网络管理能力。
+- 两种模式在同一实例中严格互斥，创建时确定，运行期间不可切换。需要更换模式时，应停止并销毁原实例、完成资源交接，再以另一模式创建新实例。
 - 组件可以订阅 ESP-IDF 网络事件或接收应用提供的网络就绪通知来协调 Web 服务启停；事件监听不代表资源所有权。外部网络管理器无需把每个底层事件逐一转发给组件，只需按约定提供“可服务/不可服务”状态或使用标准事件适配器。
 - 以太网及混合 Wi-Fi/Ethernet 路由管理由应用/外部网络管理器负责；本设计不要求 ESP-Cockpit 内置网络管理器同时管理 Ethernet。
 
-## 3. 组件启动、停止与门户启停
+### 2.4 Kconfig 与编译能力
 
-以下为建议的两阶段生命周期；函数名仅为说明，不构成当前已承诺的 API：
+- Kconfig 只控制能力是否编译进固件，不隐式选择某个实例的网络模式。网络模式由 `esp_cockpit_new()` 的配置显式选择，且每个实例必须且只能选择一个模式。
+- `ESP_COCKPIT_WIFI_PROVISIONING` 可控制内置 Wi-Fi 配网实现是否编译。启用该选项表示固件具备托管 Wi-Fi 能力，不代表所有实例都采用托管模式；外部网络实例不使用该能力。
+- 同一固件可以同时编译 Wi-Fi 配网能力并由实例选择托管或外部网络模式；外部模式不使用配网插件，不要求固件必须裁掉该能力。确定只采用外部网络的产品可关闭配网能力以减小固件。
+- 构建时应通过 Kconfig 依赖/冲突约束表达真实组件依赖，并在运行时由 `new()` 校验所选模式与已编译能力是否匹配。未编译的可选能力不得静默降级；相关 API 返回 `ESP_ERR_NOT_SUPPORTED`。
+- TLS、NVS 持久化、SSE 等可选实现可分别由 Kconfig 控制；核心 HTTP/WebSocket/JSON-RPC 能力不应仅为开关数量而拆分选项。精确选项名和依赖关系在组件依赖及实现设计阶段确定。
+- Kconfig 默认值不得包含产品凭据、Token、证书私钥等秘密。
 
-1. **创建/配置**：建立组件实例和内部状态；应用注册业务参数、RPC 方法及扩展模块，并选择托管 Wi-Fi 或外部网络模式。
-2. **启动生命周期控制器**：应用调用组件启动入口后，托管模式启动其 Wi-Fi Manager；外部模式开始观察标准网络事件或等待应用提供网络就绪状态。应用不需要自己等待网络事件后再调用第二个 Web 服务启动 API。
-3. **按网络就绪状态启动 Web Portal**：托管模式在配网 SoftAP 已可服务时启动门户（无需等待 STA 获得 IP），正常连接时根据网络策略提供 STA 访问；外部模式在至少一个配置为 Web 服务承载接口的网络就绪时启动 Web 服务。网络暂不可用时生命周期控制器保留实例并等待重试/后续就绪事件。
-4. **启动/停止配网门户**：托管模式下这是由 Wi-Fi Manager 控制的网络状态转换；应用可通过 GPIO、维护流程或已认证的 JSON-RPC 请求配网，组件不绑定特定硬件按键。外部网络模式不提供内置 Wi-Fi 配网门户。
-5. **停止 Web Portal**：拒绝新请求、结束或通知现有会话，并关闭组件拥有的服务和定时器；网络暂时离线时可按策略停止监听并等待恢复。注销组件注册的事件处理器，但不停止外部网络。
-6. **销毁实例**：仅在停止完成后释放注册表和实例状态。托管模式是否在停止时关闭组件创建的 Wi-Fi 接口，需由最终 API 契约明确。
+网络模式与 Wi-Fi 配网编译能力的组合行为如下：
 
-应用应能选择设备启动时启动生命周期控制器，或仅在维护授权后启动。控制器负责协调网络状态与 Web 服务启停，避免应用直接消费并转发每种 Wi-Fi/Ethernet 底层事件。停止 Portal 不得停止由外部应用拥有的 Wi-Fi、Ethernet、默认事件循环或共享 netif。托管模块停止时是否关闭它自己创建的 Wi-Fi 接口，应由配置及资源所有权决定。
+| 实例模式 | Wi-Fi 配网能力已编译 | `new()` 结果 | 运行行为 |
+|---|---:|---|---|
+| `MANAGED_WIFI` | 是 | 成功（资源配额等其他校验通过时） | 组件拥有并管理该实例的 Wi-Fi 配网生命周期 |
+| `MANAGED_WIFI` | 否 | `ESP_ERR_NOT_SUPPORTED` | 不创建实例，不启动网络资源 |
+| `EXTERNAL` | 是 | 成功 | 使用外部网络；不启动或调用内置 Wi-Fi 配网能力 |
+| `EXTERNAL` | 否 | 成功 | 使用外部网络；行为与已编译时相同 |
 
-启停操作应可检测重复调用、部分启动失败和停止中的并发请求；启动失败需返回明确错误并完成已启动资源的回滚。事件处理器、定时器和 WebSocket 会话必须在停止时被取消或安全摘除，避免回调访问已释放实例。
+该表只表示网络模式与 Wi-Fi 配网能力的关系；单实例配额、参数有效性及其他编译选项仍须分别校验。
+
+## 3. 公共 API 与生命周期契约
+
+公共 API 采用“应用启动一个生命周期控制器，由组件协调网络状态与 Web 服务”的模型。以下函数名和结构仅用于说明契约，不构成最终 ABI：
+
+```c
+typedef enum {
+    ESP_COCKPIT_NETWORK_MODE_UNSPECIFIED = 0,
+    ESP_COCKPIT_NETWORK_MODE_MANAGED_WIFI,
+    ESP_COCKPIT_NETWORK_MODE_EXTERNAL,
+} esp_cockpit_network_mode_t;
+
+typedef enum {
+    ESP_COCKPIT_STATE_CREATED,
+    ESP_COCKPIT_STATE_WAITING_FOR_NETWORK,
+    ESP_COCKPIT_STATE_PROVISIONING,
+    ESP_COCKPIT_STATE_STARTING_WEB,
+    ESP_COCKPIT_STATE_READY,
+    ESP_COCKPIT_STATE_STOPPING,
+    ESP_COCKPIT_STATE_STOPPED,
+    ESP_COCKPIT_STATE_ERROR,
+} esp_cockpit_state_t;
+
+typedef void (*esp_cockpit_event_handler_t)(
+    esp_cockpit_handle_t handle,
+    const esp_cockpit_event_t *event,
+    void *user_ctx);
+
+esp_err_t esp_cockpit_new(
+    const esp_cockpit_config_t *config,
+    esp_cockpit_handle_t *out_handle);
+esp_err_t esp_cockpit_register_param(
+    esp_cockpit_handle_t handle,
+    const esp_cockpit_param_t *param);
+esp_err_t esp_cockpit_register_rpc_method(
+    esp_cockpit_handle_t handle,
+    const esp_cockpit_rpc_method_t *method);
+esp_err_t esp_cockpit_register_event_handler(
+    esp_cockpit_handle_t handle,
+    esp_cockpit_event_handler_t handler,
+    void *user_ctx);
+esp_err_t esp_cockpit_start(esp_cockpit_handle_t handle);
+esp_err_t esp_cockpit_stop(esp_cockpit_handle_t handle);
+esp_err_t esp_cockpit_set_external_network_ready(
+    esp_cockpit_handle_t handle,
+    bool ready);
+esp_err_t esp_cockpit_get_state(
+    esp_cockpit_handle_t handle,
+    esp_cockpit_state_t *out_state);
+esp_err_t esp_cockpit_del(esp_cockpit_handle_t handle);
+```
+
+### 3.1 创建与注册
+
+- `new()` 创建实例、复制/校验配置并建立内部状态；不得启动 Wi-Fi 驱动、配网门户或 Web Server。配置必须显式选择且只能选择一个网络模式；默认初始化的模式为 `ESP_COCKPIT_NETWORK_MODE_UNSPECIFIED`，未选择或选择无效模式时返回 `ESP_ERR_INVALID_ARG`；托管 Wi-Fi 能力未编译时选择该模式应返回 `ESP_ERR_NOT_SUPPORTED`。
+- 首版托管 Wi-Fi 实例配额在 `new()` 时原子检查并保留，第二个托管实例返回 `ESP_ERR_INVALID_STATE`；配额仅在 `del()` 成功后释放。允许创建多个外部网络实例，但因 HTTP 服务资源限制，同时只能有一个实例成功进入活动服务状态。
+- 配置结构按职责分组，网络模式与对应网络配置使用互斥联合体表达，避免同时传入托管与外部网络配置。以下仅示意，不构成最终 ABI：
+
+  ```c
+  typedef struct {
+      esp_cockpit_network_mode_t mode;
+      union {
+          esp_cockpit_managed_wifi_config_t managed_wifi;
+          esp_cockpit_external_network_config_t external;
+      } network;
+      esp_cockpit_http_config_t http;
+  } esp_cockpit_config_t;
+  ```
+
+- 提供 `ESP_COCKPIT_CONFIG_DEFAULT()` 初始化宏，并令 `mode` 默认为 `ESP_COCKPIT_NETWORK_MODE_UNSPECIFIED`；应用必须显式设置模式。`new()` 校验模式、互斥字段、配置参数与编译能力，并明确配置字符串等数据是复制还是由调用方保证生命周期。配置缺失或组合无效返回 `ESP_ERR_INVALID_ARG`，选择未编译能力返回 `ESP_ERR_NOT_SUPPORTED`，不得静默猜测资源所有者或降级。
+- 托管 Wi-Fi 配置首版只包含启动配网门户所必需的产品选项；不将 STA 凭据作为普通配置字段或 Kconfig 默认值。网络地址、DNS、hostname 等由拥有接口的网络管理方负责。外部网络配置首版只描述 ready/not-ready 的提供方式，优先使用应用主动通知；暂不引入多网口选择、优先级或自动事件适配器。
+- 认证、证书、静态资源、RPC 限额等采用独立子配置，避免主配置结构无边界膨胀。
+- 应用应在 `start()` 前注册参数、RPC 方法、事件处理器及扩展模块。首版不要求支持运行中修改注册表，以避免引入注册表并发和一致性复杂度。
+- NVS、`esp_netif`、默认 `esp_event` loop 等全局设施仍须由应用启动层按契约准备。托管模式负责组件拥有的 Wi-Fi 资源，但不因此拥有或销毁这些共享全局设施。
+
+### 3.2 启动与网络就绪
+
+- `start()` 启动生命周期控制器并返回同步启动结果；返回成功表示控制器已运行，不代表 Web 页面此刻一定可访问。
+- `start()` 必须原子地申请进程内 ESP-Cockpit HTTP/WebSocket 服务资源；若另一实例已持有活动服务资源，返回 `ESP_ERR_INVALID_STATE`。监听端口与应用/其他组件服务冲突时，应返回底层绑定错误并回滚本次资源。
+- 托管 Wi-Fi 模式下，组件启动 Wi-Fi Manager 并消费底层 Wi-Fi 事件；配网 SoftAP 可提供服务时即可按策略启动 Web Portal，不要求等待 STA 获取 IP。
+- 外部网络模式下，组件观察所配置网络接口的标准 ESP-IDF 网络事件，或接受外部网络适配器提供的就绪状态。应用无需自行等待网络就绪后再次调用 Web Server 启动 API，也无需逐一转发底层驱动事件。
+- Web Server 生命周期由组件控制器根据网络就绪状态协调。状态可通过 `get_state()` 和高阶组件事件观察；状态事件应能表达等待网络、配网可用、服务就绪及异步故障。
+- 对无法通过标准事件识别的外部网络管理器，可提供窄的“网络可服务/不可服务”状态通知 API；不暴露完整 Wi-Fi/Ethernet 驱动事件作为公共 API。
+- 外部网络通知只更新 ESP-Cockpit 的“可服务”状态，不代表组件拥有或重新配置该接口；如果组件能直接监听所选 ESP-IDF 接口事件，则应用无需调用该通知 API。首版可优先提供应用主动报告 ready/not-ready 的窄接口，未报告时按不可服务处理；事件通知仅更新状态并投递给控制任务，不在调用线程直接启停 Web Server。
+- `ready=true` 表示外部网络管理器确认当前网络可用于提供 Portal 服务，不绑定某个固定底层事件。监听接口选择、多网口优先级及默认路由不由该布尔通知接口隐式决定。
+
+### 3.3 停止与销毁
+
+- `stop()` 停止生命周期控制器、Web Server、配网门户、组件任务/定时器及组件注册的事件处理器，并释放本实例持有的活动 HTTP 服务配额及组件拥有的运行时网络资源。托管模式下停止组件创建/管理的 Wi-Fi 接口；外部网络模式下绝不停止或修改外部 Wi-Fi、Ethernet、DHCP、netif 或共享全局设施。停止不会释放仍存活托管实例的创建配额。
+- 停止应拒绝新请求并结束或关闭现有客户端连接；资源清理完成后进入停止态。`del()` 只允许在停止后释放实例和注册表。
+- `start()` 在已运行或停止流程中再次调用返回 `ESP_ERR_INVALID_STATE`；对已停止实例再次调用 `stop()` 可幂等成功。停止期间其他不兼容操作返回明确状态错误；部分启动失败返回原始错误并回滚本次已创建资源。
+- `stop()` 完成后进入 `STOPPED`；如允许再次 `start()`，必须重新建立组件拥有的运行时资源并按当前网络状态恢复服务。最终 API 应明确实例是否可重启及注册表在 stop/start 间是否保留。
+- 插件未启用时调用相应可选功能 API，应返回 `ESP_ERR_NOT_SUPPORTED`，不得静默成功。
+- 事件 handler、timer、任务和 WebSocket 会话在销毁实例前必须安全摘除，迟到事件不得访问已释放的实例。回调保持短小，耗时操作由受控任务处理。
+
+建议的应用侧调用顺序如下：
+
+```text
+应用启动层准备全局设施
+  → esp_cockpit_new(config: managed Wi-Fi 或 external)
+  → 注册参数、RPC 方法和组件事件处理器
+  → esp_cockpit_start()
+  → 通过状态查询/高阶事件观察 WAITING_FOR_NETWORK、PROVISIONING、READY 或 ERROR
+  → esp_cockpit_stop()
+  → esp_cockpit_del()
+```
+
+该设计的目标是让应用只需选择网络模式并启动组件，不必自行拼装 Wi-Fi/Ethernet 底层事件链，也不必在网络就绪时再调用第二个 Web 服务启动入口。
 
 ## 4. Wi-Fi 配网状态模型
 
@@ -176,9 +299,12 @@ Wi-Fi Manager
 
 ### 插件模式与应用集成契约
 
-- Wi-Fi 配网启用即托管 Wi-Fi、外部网络模式禁用内置配网/网络管理插件的 Kconfig 约束，以及网络就绪通知的最小 API。
+- 首版进程级托管 Wi-Fi 实例配额、活动 HTTP 服务实例约束及与应用自有监听器的端口协调原则已明确；实现阶段仍需验证 ESP-IDF HTTP Server 的冲突错误传播和资源回滚。
+- 每个实例严格选择托管 Wi-Fi 或外部网络之一；Kconfig 控制能力是否编译而不替实例选模式。仍需确定 Wi-Fi 配网等选项的最终名称、依赖/冲突关系及默认配置。
 - NVS、`esp_netif`、默认事件循环的前置条件和应用启动契约。
-- 托管 Wi-Fi 与外部网络模式的资源创建/释放规则，以及应用选择/配置模式的接口。
+- 外部网络就绪通知 API 的最终签名，以及如需自动事件适配器时指定接口的配置方式。
+- 最终公共 C 类型/函数签名、配置字符串所有权规则、插件禁用时错误码，以及停止后同一实例是否可重新启动。
+- 启停 API 并发调用的精确错误码及部分启动失败的资源回滚细节。
 
 ### 芯片与网络接口兼容性
 
@@ -200,4 +326,4 @@ Wi-Fi Manager
 
 - 外部网络模式下网络就绪/失效状态如何驱动 Web 服务启动、停止或重新绑定。
 - 组件级事件 payload、分发上下文、错误类别及停止过程中的迟到事件处理。
-- 组件停止生命周期控制器/Web Portal 时，托管网络是继续运行还是一并停止；外部网络始终不得被组件擅自销毁。
+- 托管 Wi-Fi 模式下，`stop()` 停止组件拥有的 Wi-Fi 运行时资源；外部网络始终不得被组件擅自销毁。
