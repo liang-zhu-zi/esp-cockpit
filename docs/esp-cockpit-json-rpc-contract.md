@@ -29,7 +29,7 @@
 ## 4. HTTP 与 WebSocket
 
 - HTTP JSON-RPC 只使用 `POST` 和 `application/json`；`GET` 不承载 RPC 且不得改变状态。
-- HTTP 状态码表示请求/传输层是否可被 RPC 处理，例如认证失败、无效 HTTP 请求或整体资源拒绝。已经分发的合法 RPC 使用 HTTP 200，并在 JSON-RPC 信封的 `result` 或 `error` 中表达业务结果。这样 HTTP 与 WebSocket 共用同一套 RPC 业务错误语义。
+- HTTP 状态码表示请求/传输层是否能够将请求交给 RPC 处理，例如认证失败、无效 HTTP 请求或预分发的整体资源拒绝。请求进入 JSON-RPC 处理后，无论成功还是协议/RPC 错误（包括解析错误、未知方法和无效参数），均使用 HTTP 200，并在 JSON-RPC 信封的 `result` 或 `error` 中表达。这样 HTTP 与 WebSocket 共用同一套 RPC 错误语义。
 - WebSocket 建立后不再有逐消息 HTTP 状态码；每条 RPC 的业务成功或失败均使用 JSON-RPC `result` 或 `error`。
 - Read、Write 和 Invoke 可通过 HTTP 或 WebSocket 承载；Subscribe/Unsubscribe 使用 WebSocket。单个订阅可独立取消，避免为停止一个订阅而关闭含有其他活动订阅的连接。
 - 多路径 Subscribe 必须全有或全无：任一路径不可订阅或无法取得其初始值时，整体返回错误且不得创建部分订阅。持续推送的部分成功容易造成客户端误以为所有路径都受监控，也会增加订阅清理复杂度；该规则不改变多路径 Read/Write 的逐项结果语义。
