@@ -1,6 +1,6 @@
 # ESP-Cockpit 交互模型与 JSON-RPC 映射
 
-> 状态：设计讨论稿。本文评估借鉴 Matter Interaction Model（IM）语义，不声明 ESP-Cockpit 实现 Matter 协议或具备 Matter 互操作性。
+> 状态：设计讨论稿。本文说明借鉴 Matter Interaction Model（IM）语义的设计理由，不声明 ESP-Cockpit 实现 Matter 协议或具备 Matter 互操作性。客户端实现契约见[ESP-Cockpit JSON-RPC 协议契约](./esp-cockpit-json-rpc-contract.md)。
 
 ## 1. 结论与首版决策
 
