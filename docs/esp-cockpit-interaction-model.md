@@ -59,7 +59,7 @@ JSON-RPC 负责方法调用、请求/响应关联和通知封装；Endpoint、Cl
 | 交互 | JSON-RPC 请求/响应建议 | 需定义的语义 |
 |---|---|---|
 | Read | 带 `id` 的 `im.read` 请求（HTTP 或 WebSocket），响应在 `result` 中逐 Path 返回值/状态和可用版本 | 逐路径 best-effort；不承诺多路径原子快照 |
-| Write | 带 `id` 的 `im.write` 请求（HTTP 或 WebSocket），响应在 `result` 中逐 Path 返回结果 | 逐项授权和范围校验，按路径值版本拒绝过期写入，允许部分成功；冲突时展示当前值并保留草稿，用户明确确认后才重提冲突路径；未包含的 Path 不变，显式 `null` 仅在 Schema 允许时有效；事务由专用 Command/RPC 实现 |
+| Write | 带 `id` 的 `im.write` 请求（HTTP 或 WebSocket），响应在 `result` 中逐 Path 返回结果 | 逐项授权和范围校验，按路径值版本拒绝过期写入，允许部分成功；仅实际状态值变化推进版本，重复设置同值不推进；冲突时展示当前值并保留草稿，用户明确确认后才重提冲突路径；未包含的 Path 不变，显式 `null` 仅在 Schema 允许时有效；业务副作用用 Invoke/专用 Command，原子事务用专用 Command/RPC |
 | Invoke | 带 `id` 的 `im.invoke` 请求（HTTP 或 WebSocket），响应返回命令结果或 Operation ID | Command 标注重试安全性；不提供通用去重或“恰好一次” |
 | Subscribe | 带 `id` 的订阅请求，返回订阅句柄及各路径的初始值/版本；后续报告以无 `id` Notification 推送 | 全部路径成功才创建订阅；连接生命周期、快照重订阅、版本/序号和有界背压 |
 
