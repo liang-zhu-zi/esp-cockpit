@@ -61,15 +61,15 @@ JSON-RPC 负责方法调用、请求/响应关联和通知封装；Endpoint、Cl
 | Read | 带 `id` 的 `im.read` 请求（HTTP 或 WebSocket），响应在 `result` 中逐 Path 返回值/状态和可用版本 | 逐路径 best-effort；不承诺多路径原子快照 |
 | Write | 带 `id` 的 `im.write` 请求（HTTP 或 WebSocket），响应在 `result` 中逐 Path 返回结果 | 逐项授权和范围校验，允许部分成功；事务由专用 Command/RPC 实现 |
 | Invoke | 带 `id` 的 `im.invoke` 请求（HTTP 或 WebSocket），响应返回命令结果或 Operation ID | Command 标注重试安全性；不提供通用去重或“恰好一次” |
-| Subscribe | 带 `id` 的订阅请求，返回订阅句柄/初始状态；后续报告以无 `id` Notification 推送 | 连接生命周期、快照重订阅、版本/序号和有界背压 |
+| Subscribe | 带 `id` 的订阅请求，返回订阅句柄及各路径的初始值/版本；后续报告以无 `id` Notification 推送 | 连接生命周期、快照重订阅、版本/序号和有界背压 |
 
 ### 3.1 Subscribe 生命周期
 
 JSON-RPC 2.0 的请求/响应关联是一问一答；这与长生命周期订阅并不冲突。订阅应拆分为：
 
 1. 客户端以带 `id` 的 JSON-RPC 请求创建订阅。
-2. 设备返回一次普通 JSON-RPC 响应，包含订阅 ID、当前初始值或快照版本，以及协商后的订阅范围/参数。
-3. 后续状态报告由设备通过不带 `id` 的 JSON-RPC Notification 发送；通知可包含订阅 ID、路径、值、版本/序列号和时间信息。
+2. 设备返回一次普通 JSON-RPC 响应，包含订阅 ID、每个订阅路径的当前初始值及对应版本/序列号，以及协商后的订阅范围/参数。该快照按路径标记版本，不承诺多路径间原子一致。
+3. 后续状态报告由设备通过不带 `id` 的 JSON-RPC Notification 发送；通知可包含订阅 ID、路径、值、版本/序列号和时间信息，并按对应路径的初始版本/序列号接续更新。若初始快照超出已公布资源上限，必须明确拒绝订阅，不得返回部分快照并表现为成功。
 4. 订阅与当前 WebSocket 连接同生命周期；连接关闭、会话过期或权限撤销时终止。首版不提供断线补发/恢复；重连后客户端重新订阅并获取新快照。
 
 HTTP JSON-RPC 仅接受 `POST` 与 `application/json`，用于一次性请求/响应；`GET` 不承载 RPC 且不得修改状态。首版不支持 SSE，状态订阅统一使用 WebSocket。

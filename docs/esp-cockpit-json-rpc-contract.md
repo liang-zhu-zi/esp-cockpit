@@ -32,6 +32,7 @@
 - HTTP 状态码表示请求/传输层是否可被 RPC 处理，例如认证失败、无效 HTTP 请求或整体资源拒绝。已经分发的合法 RPC 使用 HTTP 200，并在 JSON-RPC 信封的 `result` 或 `error` 中表达业务结果。这样 HTTP 与 WebSocket 共用同一套 RPC 业务错误语义。
 - WebSocket 建立后不再有逐消息 HTTP 状态码；每条 RPC 的业务成功或失败均使用 JSON-RPC `result` 或 `error`。
 - Read、Write 和 Invoke 可通过 HTTP 或 WebSocket 承载；Subscribe/Unsubscribe 使用 WebSocket。单个订阅可独立取消，避免为停止一个订阅而关闭含有其他活动订阅的连接。
+- Subscribe 成功响应必须包含订阅 ID，以及每个订阅路径的当前值和对应版本/序列号；后续 Notification 按该路径版本/序列号接续更新，避免创建订阅时漏掉状态变化。多路径初始值不承诺跨路径原子快照。若初始快照超过资源上限，必须明确拒绝订阅，不得返回部分初始值并表现为成功。
 - 具体 HTTP 状态码到请求/传输失败类别的映射，以及稳定错误码清单，须在逐方法 API 定义中补齐。
 
 ## 5. 能力发现与 Schema
