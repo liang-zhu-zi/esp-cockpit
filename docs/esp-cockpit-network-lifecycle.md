@@ -122,7 +122,7 @@ esp_err_t esp_cockpit_del(esp_cockpit_handle_t handle);
 
 ### 3.1 创建与注册
 
-- `new()` 创建实例、复制/校验配置并建立内部状态；不得启动 Wi-Fi 驱动、配网门户或 Web Server。配置必须显式选择且只能选择一个网络模式；默认初始化的模式为 `ESP_COCKPIT_NETWORK_MODE_UNSPECIFIED`，未选择或选择无效模式时返回 `ESP_ERR_INVALID_ARG`；托管 Wi-Fi 能力未编译时选择该模式应返回 `ESP_ERR_NOT_SUPPORTED`。
+- `new()` 创建实例、复制配置结构及其指针字段所指向的数据、校验配置并建立内部状态；不得启动 Wi-Fi 驱动、配网门户或 Web Server。配置必须显式选择且只能选择一个网络模式；默认初始化的模式为 `ESP_COCKPIT_NETWORK_MODE_UNSPECIFIED`，未选择或选择无效模式时返回 `ESP_ERR_INVALID_ARG`；托管 Wi-Fi 能力未编译时选择该模式应返回 `ESP_ERR_NOT_SUPPORTED`。
 - 首版托管 Wi-Fi 实例配额在 `new()` 时原子检查并保留，第二个托管实例返回 `ESP_ERR_INVALID_STATE`；配额仅在 `del()` 成功后释放。允许创建多个外部网络实例，但因 HTTP 服务资源限制，同时只能有一个实例成功进入活动服务状态。
 - 配置结构按职责分组，网络模式与对应网络配置使用互斥联合体表达，避免同时传入托管与外部网络配置。以下仅示意，不构成最终 ABI：
 
@@ -137,7 +137,7 @@ esp_err_t esp_cockpit_del(esp_cockpit_handle_t handle);
   } esp_cockpit_config_t;
   ```
 
-- 提供 `ESP_COCKPIT_CONFIG_DEFAULT()` 初始化宏，并令 `mode` 默认为 `ESP_COCKPIT_NETWORK_MODE_UNSPECIFIED`；应用必须显式设置模式。`new()` 校验模式、互斥字段、配置参数与编译能力，并明确配置字符串等数据是复制还是由调用方保证生命周期。配置缺失或组合无效返回 `ESP_ERR_INVALID_ARG`，选择未编译能力返回 `ESP_ERR_NOT_SUPPORTED`，不得静默猜测资源所有者或降级。
+- 提供 `ESP_COCKPIT_CONFIG_DEFAULT()` 初始化宏，并令 `mode` 默认为 `ESP_COCKPIT_NETWORK_MODE_UNSPECIFIED`；应用必须显式设置模式。`new()` 深拷贝配置结构中指针字段所指向的配置数据，并校验模式、互斥字段、配置参数与编译能力；成功返回后，应用不必继续保留原始配置数据。配置缺失或组合无效返回 `ESP_ERR_INVALID_ARG`，选择未编译能力返回 `ESP_ERR_NOT_SUPPORTED`，复制所需内存不足返回 `ESP_ERR_NO_MEM`。任何失败均须清理部分副本并释放已预留配额，不得留下实例或资源。
 - 托管 Wi-Fi 配置首版只包含启动配网门户所必需的产品选项；不将 STA 凭据作为普通配置字段或 Kconfig 默认值。网络地址、DNS、hostname 等由拥有接口的网络管理方负责。外部网络配置首版只描述 ready/not-ready 的提供方式，优先使用应用主动通知；暂不引入多网口选择、优先级或自动事件适配器。
 - 认证、证书、静态资源、RPC 限额等采用独立子配置，避免主配置结构无边界膨胀。
 - 应用通过 `new()` 的单个类型化应用描述符整体提供参数、RPC 方法、能力、事件处理器及扩展模块；组件在 `start()` 时统一校验并冻结注册表。描述符及其引用的注册元数据由应用持有，须在实例销毁前保持有效且不可变；组件只保留引用、不深拷贝，典型用法是静态只读数据。回调的 `user_ctx` 由应用持有，组件只借用且不释放；应用须保持其有效，直至 `del()` 成功返回。任何无效项导致整体失败，不得留下部分注册结果；首版不支持运行时增删注册项。
