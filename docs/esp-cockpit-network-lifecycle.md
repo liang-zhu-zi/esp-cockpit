@@ -103,19 +103,12 @@ typedef void (*esp_cockpit_event_handler_t)(
     const esp_cockpit_event_t *event,
     void *user_ctx);
 
+typedef struct esp_cockpit_app_descriptor esp_cockpit_app_descriptor_t;
+
 esp_err_t esp_cockpit_new(
     const esp_cockpit_config_t *config,
+    const esp_cockpit_app_descriptor_t *app_descriptor,
     esp_cockpit_handle_t *out_handle);
-esp_err_t esp_cockpit_register_param(
-    esp_cockpit_handle_t handle,
-    const esp_cockpit_param_t *param);
-esp_err_t esp_cockpit_register_rpc_method(
-    esp_cockpit_handle_t handle,
-    const esp_cockpit_rpc_method_t *method);
-esp_err_t esp_cockpit_register_event_handler(
-    esp_cockpit_handle_t handle,
-    esp_cockpit_event_handler_t handler,
-    void *user_ctx);
 esp_err_t esp_cockpit_start(esp_cockpit_handle_t handle);
 esp_err_t esp_cockpit_stop(esp_cockpit_handle_t handle);
 esp_err_t esp_cockpit_set_external_network_ready(
@@ -147,7 +140,7 @@ esp_err_t esp_cockpit_del(esp_cockpit_handle_t handle);
 - 提供 `ESP_COCKPIT_CONFIG_DEFAULT()` 初始化宏，并令 `mode` 默认为 `ESP_COCKPIT_NETWORK_MODE_UNSPECIFIED`；应用必须显式设置模式。`new()` 校验模式、互斥字段、配置参数与编译能力，并明确配置字符串等数据是复制还是由调用方保证生命周期。配置缺失或组合无效返回 `ESP_ERR_INVALID_ARG`，选择未编译能力返回 `ESP_ERR_NOT_SUPPORTED`，不得静默猜测资源所有者或降级。
 - 托管 Wi-Fi 配置首版只包含启动配网门户所必需的产品选项；不将 STA 凭据作为普通配置字段或 Kconfig 默认值。网络地址、DNS、hostname 等由拥有接口的网络管理方负责。外部网络配置首版只描述 ready/not-ready 的提供方式，优先使用应用主动通知；暂不引入多网口选择、优先级或自动事件适配器。
 - 认证、证书、静态资源、RPC 限额等采用独立子配置，避免主配置结构无边界膨胀。
-- 应用应在 `start()` 前注册参数、RPC 方法、事件处理器及扩展模块。首版不要求支持运行中修改注册表，以避免引入注册表并发和一致性复杂度。
+- 应用应通过单个类型化应用描述符整体提供参数、RPC 方法、能力、事件处理器及扩展模块，并在 `start()` 前提交；组件启动时统一校验并冻结注册表。任何无效项导致整体失败，不得留下部分注册结果；首版不支持运行时增删注册项。
 - NVS、`esp_netif`、默认 `esp_event` loop 等全局设施仍须由应用启动层按契约准备。托管模式负责组件拥有的 Wi-Fi 资源，但不因此拥有或销毁这些共享全局设施。
 
 ### 3.2 启动与网络就绪
@@ -180,8 +173,8 @@ esp_err_t esp_cockpit_del(esp_cockpit_handle_t handle);
 
 ```text
 应用启动层准备全局设施
-  → esp_cockpit_new(config: managed Wi-Fi 或 external)
-  → 注册参数、RPC 方法和组件事件处理器
+  → 组装完整的类型化应用描述符（参数、方法、能力、回调等）
+  → esp_cockpit_new(config, app_descriptor)
   → esp_cockpit_start()
   → 通过状态查询/高阶事件观察 WAITING_FOR_NETWORK、PROVISIONING、READY 或 ERROR
   → esp_cockpit_stop()
@@ -282,8 +275,8 @@ Wi-Fi Manager（若启用）可订阅相关 ESP-IDF 网络事件来推进内部�
 应用启动层
   ├─ 按产品所有权初始化 NVS / esp_netif / 默认事件循环
   ├─ 外部模式：初始化应用拥有的 Wi-Fi/Ethernet 网络管理器
-  ├─ 创建 ESP-Cockpit 实例，选择托管 Wi-Fi 或外部网络模式
-  ├─ 注册业务参数、JSON-RPC 方法及应用事件处理
+  ├─ 组装完整的应用描述符，包含业务参数、JSON-RPC 方法及应用事件处理
+  ├─ 创建 ESP-Cockpit 实例并传入应用描述符，选择托管 Wi-Fi 或外部网络模式
   └─ 启动 ESP-Cockpit 生命周期控制器（而非手动等待 IP 后启动 Web Server）
 
 ESP-Cockpit
