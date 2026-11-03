@@ -14,3 +14,4 @@
 ## 参考资料
 
 - `ref/` 路径下文件仅供参考。
+- ESP-IDF 文档可通过 esp-cn-docs MCP Server 查询。
