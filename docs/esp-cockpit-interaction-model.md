@@ -15,7 +15,7 @@
 
 JSON-RPC 负责方法调用、请求/响应关联和通知封装；Endpoint、Cluster、Attribute、Command 等路径作为应用数据模型中的目标标识。首版采用自有字符串标识、受限 Schema 和独立版本规则，不复用 Matter 标识来暗示兼容。
 
-应用命名空间与上述数据路径分工不同：Endpoint/Cluster/Attribute/Command/Event 用于定位设备模型中的目标；应用命名空间用于标记应用 RPC 方法、capability ID 和业务错误码的归属。它是名称前缀，不是额外的 Endpoint 或 Cluster 层，也不改变数据路径结构。
+应用命名空间与上述数据路径分工不同：Endpoint/Cluster/Attribute/Command/Event 用于定位设备模型中的目标；应用命名空间用于标记应用 RPC 方法、capability ID 和业务错误码的归属，例如 `com.acme.greenhouse`。它是小写 ASCII 反向域名风格的普通名称前缀，不进行 DNS 查询；它不是额外的 Endpoint 或 Cluster 层，也不改变数据路径结构。
 
 这是一种**受 Matter 启发的应用交互模型**。除非实现并验证 Matter 所要求的完整数据模型、交互语义、安全、发现、传输和一致性要求，否则不能声称“兼容 Matter”或“Matter 网关”。
 
