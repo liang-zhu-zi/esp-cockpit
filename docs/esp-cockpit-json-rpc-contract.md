@@ -4,7 +4,7 @@
 
 ## 1. 协议定位与版本
 
-- 消息协议必须符合 JSON-RPC 2.0，包括请求/响应信封、`id` 关联和 Notification 不带 `id` 等规则。首版不接受 JSON-RPC Batch 数组；不支持 Batch 是采用的协议子集，不改变单条消息的 JSON-RPC 2.0 语义。
+- 消息协议必须符合 JSON-RPC 2.0，包括请求/响应信封、`id` 关联和 Notification 不带 `id` 等规则。首版所有客户端发往设备的方法调用都必须带 `id`，不接受客户端发起的 Notification；设备向客户端推送的 Notification 不带 `id`。首版不接受 JSON-RPC Batch 数组；不支持 Batch 是采用的协议子集，不改变单条消息的 JSON-RPC 2.0 语义。
 - Read、Write、Invoke、Subscribe 的组织方式受 Matter Interaction Model 启发，但 ESP-Cockpit 使用自有路径、Schema 和 JSON-RPC over HTTP/WebSocket，不声明 Matter 语义合规或 Matter 协议互操作。
 - JSON-RPC 线协议与公共 C API 分别版本化；不得用一个版本号代替另一者的兼容性。公共 C API 在同一主版本内保持源码兼容；不承诺跨 ESP-IDF、工具链或构建配置的预编译二进制 ABI。分开版本能使客户端和组件集成方独立判断升级影响；源码兼容符合组件随应用编译的使用方式。
 - 能力发现必须公布 JSON-RPC 应用协议的主、次版本，并同时报告当前实例实际提供的方法、可选能力与有限资源上限。协议版本提供快速兼容判断，能力清单则反映插件和构建配置差异；不得仅凭版本号推定某个可选方法存在。
