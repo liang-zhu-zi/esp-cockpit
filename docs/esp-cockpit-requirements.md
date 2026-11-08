@@ -220,7 +220,7 @@ ESP-Cockpit 是一个通用的 ESP-IDF 组件，用于帮助基于乐鑫芯片�
 - JSON-RPC 2.0 不定义认证机制；浏览器端通过 HTTPS 会话 Cookie 认证，WebSocket 握手复用该 Cookie，不在 URL/query 中传递长期 Token。
 - 管理面默认采用 HTTPS/WSS，避免在明文链路上传输管理内容或加载可被替换的前端代码；TLS 不能替代应用层身份认证、授权、来源校验和速率限制。入站 TLS 身份与出站 TLS 信任配置分别管理。
 - 每种传输都应设置消息/请求大小、并发操作、连接数、超时及待发送数据上限。HTTP JSON-RPC 不应因短连接而绕过资源保护；WebSocket 客户端也需有界管理。
-- 大型 Schema 或参数集合应评估分页/游标式 RPC。若采用流式或分帧传输，必须定义应用层消息边界和完整性，确保客户端只处理完整、合法的 JSON-RPC 消息；HTTP Chunked 响应接口不适用于已经升级的 WebSocket 连接。
+- 大型 Schema 或参数集合使用有界分页；Schema 分页采用绑定 Cluster Schema 修订号的不透明游标。若采用流式或分帧传输，必须定义应用层消息边界和完整性，确保客户端只处理完整、合法的 JSON-RPC 消息；HTTP Chunked 响应接口不适用于已经升级的 WebSocket 连接。
 - 断线后客户端应重新认证、重新订阅并获取新快照；订阅不跨 WebSocket 连接恢复。慢客户端使用有界队列并按路径合并为最新状态、携带版本/序号；持续溢出时终止订阅或连接，不无限缓存。
 - 首版不提供通用 JSON-RPC Batch、SSE、通用幂等键或“恰好一次”保证。JSON-RPC `id` 仅关联请求/响应；各 Command 须说明能否安全重试，客户端不得盲目重放非幂等操作。
 - HTTP JSON-RPC 仅接受 `POST` 与 `application/json`；`GET` 不承载 RPC 且不得修改状态。状态变更请求必须携带 CSRF token 并通过精确 Origin 校验。
@@ -537,9 +537,9 @@ OTA 支持等级按每个 target/revision 分别标记：
 ### JSON-RPC、数据模型与扩展 API
 
 - JSON-RPC 方法名/参数、稳定错误码和 HTTP 状态码映射，以及公共 C 注册/回调 API。
-- Schema 分页的具体协议、资源上限、版本兼容和读写状态码。
+- Schema 分页的剩余字段契约、游标失效错误、资源上限、版本兼容和读写状态码；不透明游标绑定 Cluster Schema 修订号已确定。
 - 事件型可靠投递是否为未来需求；首版状态订阅合并语义及连接生命周期已确定。
-- Operation ID、状态查询/进度表示、容量参数和终态记录保留策略。
+- Operation 状态/进度字段、未知 ID 错误及容量和保留期数值；活动 Operation 不驱逐，容量压力下优先回收最旧终态，无可回收记录时拒绝新 Operation。
 - JSON-RPC Batch 与 SSE 首版不支持；混合式 Matter-inspired 交互模型及 Endpoint/Cluster/Attribute/Command 标识规则已确定（详见[Matter 交互模型与 JSON-RPC 映射](./esp-cockpit-interaction-model.md)）。
 
 ### 认证、安全与信任边界
