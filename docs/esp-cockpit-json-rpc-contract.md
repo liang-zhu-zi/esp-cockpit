@@ -60,6 +60,7 @@
 ## 5. 能力发现与 Schema
 
 - 客户端先读取能力发现，再依设备公布的方法、可选能力、Schema 版本和资源限制选择调用；能力发现报告实际可用状态，而非产品理论上可能编入的全部插件。
+- `esp_cockpit.capabilities.get` 不需要参数：请求可省略 `params`，也可传入空对象 `params: {}`，两者均查询完整能力清单。`params: null`、数组或包含任何字段的对象均按无效参数拒绝。接受两种空参数写法便于 JSON-RPC 客户端调用，同时保持命名参数和拒绝未知字段的约束。
 - 未编译或未启用的插件、方法和能力必须从能力清单中完全省略，不以 `enabled: false` 形式发布；通用 WebUI 仅根据清单中实际可用的条目呈现入口。
 - 能力发现仅包含协议兼容所需的信息：JSON-RPC 版本、实际可用方法/能力、各 Cluster Schema 版本和生效资源上限；不包含产品型号、固件版本或动态运行状态。此类设备信息由可选运行信息插件提供，避免核心协议依赖该插件。
 - 能力发现响应始终包含五个顶层字段：`protocolVersion`（包含 `major`、`minor`）、`methods`、`capabilities`、`clusters`（每项包含 `id` 和正整数 `schemaVersion`）及 `limits`。`methods`、`capabilities` 和 `clusters` 始终为数组，无条目时返回空数组；`protocolVersion` 和 `limits` 始终为对象。固定字段及空数组表示可避免客户端处理字段缺失、`null` 和空列表等多种状态。分组让客户端分别处理协议兼容、可调用方法、可选功能、Cluster Schema 和资源预算，也为后续兼容扩展保留清晰边界；`limits` 内部字段仍待细化。
