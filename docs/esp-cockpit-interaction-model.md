@@ -52,6 +52,8 @@ JSON-RPC 负责方法调用、请求/响应关联和通知封装；Endpoint、Cl
 
 能力发现和 Schema 查询使用 `endpoint/cluster` 字符串标识完整 Cluster，例如 `room1/temperature`。由于子标识不包含 `/`，可以用它区分不同 Endpoint 下的同名 Cluster，而不要求 Cluster 子标识在设备内全局唯一。
 
+同一 Cluster 中的属性与命令共用局部标识名称空间，不能同名；不同 Cluster 可以使用相同名称。启动时发现冲突则报告错误并拒绝启动，避免 Schema 和日志中的名称产生歧义。
+
 不要因 Matter Endpoint 0 的语义或某个既有产品的通道编号，普遍执行 `endpoint = id + 1`。Endpoint 是数据模型标识，不是可安全推导的数组下标；任何旧接口兼容映射都必须是针对明确旧协议的显式适配器，并逐项验证身份、范围和语义。
 
 本组件目前没有已确认的 Shelly 兼容需求。`Switch.Set`、`Cover.Calibrate` 等旧方法别名不应默认加入核心设计。若未来确有兼容目标，可在独立兼容层定义静态映射、冲突策略、版本和测试，不应让核心 IM 模型依赖某厂商旧 API。
