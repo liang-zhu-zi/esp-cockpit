@@ -1,6 +1,7 @@
 # ESP-Cockpit 最小互操作契约（冻结基线）
 
-> 状态：规范性冻结，适用于首版组件、WebUI 和示例客户端的并行实现。本文与 [JSON-RPC 协议契约](./esp-cockpit-json-rpc-contract.md) 共同构成线协议及公共 C API 的基线。`limits` 字段名、单位和语义已冻结；各生产配置的有限数值须经目标板测量后写入能力发现，不得省略、改名或用 `null` 代替。
+> 文档状态：冻结规范，适用于首版组件、WebUI 和示例客户端。本文是核心 RPC/通知字段、错误码、HTTP 映射、认证/初始化、公共 C API 及资源上限字段名/单位/语义的唯一权威来源；生产配置数值须实测后公布，不得省略、改名或用 `null` 代替。
+> 补充来源：[JSON-RPC 协议契约](./esp-cockpit-json-rpc-contract.md)仅补充未在本文穷尽的客户端协议细节，不得覆盖本文。变更规则见[文档地图](./esp-cockpit-documentation-guide.md)。
 
 ## 1. 通用规则
 

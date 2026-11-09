@@ -1,5 +1,7 @@
 # OTA 支持矩阵
 
+> 文档状态：验收记录（仅适用于后续明确启用 OTA 的产品版本）。本矩阵登记特定 OTA 生产配置的实测状态，不定义 OTA 要求；要求以[需求基线](./esp-cockpit-requirements.md)及本文件引用的 OTA 规范为准。文档治理规则见[文档地图](./esp-cockpit-documentation-guide.md)。
+
 OTA 不属于 ESP-Cockpit 组件首版交付。仅当后续产品版本选择启用 OTA 时，才维护本矩阵并将其作为对应产品的发布门禁；它不构成组件首版交付或发布阻塞项。本矩阵按产品、硬件版本、ESP-IDF target/revision 和生产构建配置记录 OTA 支持状态。只有完成对应配置的适用硬件验收，才能标记为“生产 OTA 支持”；其他配置不得从同一 target 的测试结果推定支持。
 
 | 产品 / 硬件版本 | IDF target / SoC revision | 生产构建配置 | OTA 支持等级 | 最近验证版本 | 最后已知可用版本 | 可直接迁移的数据格式 | 验收证据 |

@@ -1,6 +1,6 @@
 # ESP-Cockpit 网络生命周期设计补充
 
-> 状态：架构讨论稿。本文描述推荐的职责划分、状态模型和事件流转，不是已实现行为或最终公共 API。首版目标限定为 ESP32-S31-Function-CoreBoard-1 的 Wi-Fi 与板载 RGMII Ethernet；具体 ESP-IDF v6.1 API、驱动配置和资源预算须在实现及目标板验证阶段分别确认。
+> 文档状态：设计说明（包含已确认的生命周期约束和待验证设计；不是实现声明或最终公共 API）。首版目标限定为 ESP32-S31-Function-CoreBoard-1 的 Wi-Fi 与板载 RGMII Ethernet；精确 RPC/C API 契约以[冻结互操作基线](./esp-cockpit-interoperability-baseline.md)为准，协议补充细节见[JSON-RPC 契约](./esp-cockpit-json-rpc-contract.md)。目标板结果见[组件支持矩阵](./esp-cockpit-support-matrix.md)；文档治理规则见[文档地图](./esp-cockpit-documentation-guide.md)。
 
 ## 1. 设计目标
 

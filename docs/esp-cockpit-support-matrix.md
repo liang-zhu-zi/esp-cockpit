@@ -1,5 +1,7 @@
 # ESP-Cockpit 组件支持矩阵
 
+> 文档状态：验收记录。本文只记录逐配置的实际验证等级、结果和证据，不定义产品要求、接口或实现行为；要求以[需求基线](./esp-cockpit-requirements.md)及其列出的专门规范为准。文档状态与变更规则见[文档地图](./esp-cockpit-documentation-guide.md)。
+
 ## 首版范围与当前状态
 
 首版候选范围仅包含 ESP-IDF v6.1、`esp32s31`、ESP32-S31-Function-CoreBoard-1 上的 Wi-Fi 和板载 Ethernet 两种配置。两种网络接口独立验收；目标范围已确认不代表构建、功能、安全或性能已通过，也不构成生产支持声明。
