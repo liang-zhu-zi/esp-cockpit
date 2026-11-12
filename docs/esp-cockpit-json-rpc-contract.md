@@ -28,6 +28,8 @@
 - 核心交互采用通用的 Read、Write、Invoke 和 Subscribe；支持显式取消单个订阅，以及查询设备级长操作 Operation。通用交互使客户端可以复用一套路径处理逻辑，而不必为每个属性实现独立调用方式。
 - 需要整体事务或专用长流程的能力可以使用具名 RPC；具名 RPC 与通用方法必须共用授权、校验和一致的业务语义，避免同一操作的权限或结果不一致。
 - 组件核心方法及组件内置插件方法使用保留的 `esp_cockpit.*` 命名空间；应用根描述符始终声明一个稳定的小写 ASCII 反向域名风格命名空间，例如 `com.acme.greenhouse`，即使没有应用业务方法或其他注册项也必须提供。这样应用身份不会随注册项是否为空而改变，后续增加方法或能力时也无需另换命名空间。命名空间至少包含三个以点分隔的标签；每个标签仅由小写 ASCII 字母、数字和连字符组成，不得为空或以连字符开头/结尾。应用业务方法必须使用该命名空间，不得占用组件前缀。该命名空间是普通标识，不触发 DNS 查询；应用负责选择稳定且唯一的前缀。它只表示方法归属，与 Endpoint/Cluster/Attribute/Command 等数据路径分开；禁止隐式别名，以避免插件之间名称冲突和难以发现的路由差异。
+- 应用注册的专用 RPC 方法（Schema `kind: "method"`）直接作为顶层 JSON-RPC `method` 调用（例如 `"method": "com.acme.greenhouse.calibrate"`），其 `params` 为包含已声明命名参数的对象（无声明参数时为空对象 `{}`）。其成功 `result` 遵循与 `esp_cockpit.invoke` 一致的执行结果信封：同步完成返回 `{"status": "completed", "result": <声明结果值或 null>}`，转为异步长操作返回 `{"status": "accepted", "operationId": "<id>"}`；失败使用顶层 JSON-RPC `error`。
+- 为支持浏览器整页刷新（F5）后在保持 `HttpOnly` 会话 Cookie 有效的前提下恢复内存中的 `csrfToken`（避免将 Token 存入 Web Storage），组件提供只读查询方法 `esp_cockpit.auth.session.get`（`params` 省略或 `{}`）。该方法不修改状态，免除 `X-CSRF-Token` 请求头，但必须校验有效 `esp_cockpit_session` Cookie 与精确 `Origin`，响应携带 `Cache-Control: no-store` 并返回 `{"authenticated": true, "csrfToken": "<token>"}`（无有效会话时预分发返回 HTTP `401`）；此查询不重置会话空闲超时计时器。
 - 组件方法使用全小写、点分层级命名；首版核心方法名、请求/响应字段及边界以[冻结基线第 2 节](./esp-cockpit-interoperability-baseline.md#2-冻结的核心-rpc)为准。
 - 能力发现方法名固定为 `esp_cockpit.capabilities.get`；分页 Schema 查询方法名固定为 `esp_cockpit.schema.list`。两者完整字段和边界以[冻结基线第 3 节](./esp-cockpit-interoperability-baseline.md#3-能力发现schema-与通知)为准。
 - 每个 Invoke/Command 的机器可读描述必须声明其重试安全策略；客户端只有在明确识别为安全时才能提供重试。元数据缺失或无法理解时一律按不可安全重试处理，不得根据方法名或说明文字推断。

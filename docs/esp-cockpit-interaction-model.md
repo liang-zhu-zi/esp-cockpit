@@ -19,25 +19,22 @@ JSON-RPC 负责方法调用、请求/响应关联和通知封装；Endpoint、Cl
 
 这是一种**受 Matter 启发的应用交互模型**。除非实现并验证 Matter 所要求的完整数据模型、交互语义、安全、发现、传输和一致性要求，否则不能声称“兼容 Matter”或“Matter 网关”。
 
-管理面默认使用 HTTPS/WSS；首版普通浏览器平台范围为 Windows、macOS、iOS/iPadOS 和 Android，必须逐平台验证根证书安装后的浏览器信任，不能可靠验证身份的平台/浏览器组合不列入正式支持，也不要求用户忽略证书警告。首版默认采用外部网络模式，由应用或其网络管理器负责 Wi-Fi/Ethernet 接入、网络凭据及首次网络配置；ESP-Cockpit 不提供 Wi-Fi 配网或 SoftAP 引导，示例也使用应用已建立的网络。首次使用顺序为：通过包装/说明书二维码打开厂商 HTTPS 指南，下载并核对根证书指纹后安装；由产品应用完成设备的局域网接入；设备上线后通过标签二维码或地址访问固定 mDNS 名称并进入 HTTPS/WSS 管理。产品应用如另行提供 SoftAP 配网，应使用设备唯一强随机密码并限制其用途和开放时限。首版管理员初始化需物理触发 10 分钟窗口，不增加独立 claim code；成功或超时关闭入口，只允许一个客户端原子完成。此选择减少凭据交付复杂度，但接受局域网客户端在窗口内抢先初始化的风险。家庭网络使用 `esp-<factory-id>.local`；工厂分配并校验唯一的随机标识，不使用 MAC 地址或可读序列号。设备使用唯一证书身份，专用根 CA 与受控中间 CA；至少 15 年离线管理目标通过离线 CSR/证书文件轮换实现，旧身份密钥故障时采用一次性恢复码与原购买凭据核验。产品约束为仅一个本地管理员身份且不设置用户名，不提供只读访客或角色/RBAC；允许多个并发会话，审计统一标记管理员，不区分具体个人。密码为 12–128 字节 ASCII，首尾 ASCII 空格会移除，保留内部空格并拒绝控制字符，登录和创建使用相同规则。随固件提供离线弱密码拒绝列表。密码验证材料采用带随机盐和版本化参数的标准 KDF；优先实测 Argon2id，不合适时采用经过审查的标准 KDF，不自创算法。会话使用 Secure/HttpOnly/SameSite Cookie，30 分钟空闲/24 小时绝对超时；只有成功的用户发起操作续期，设备重启后全部会话失效。WebSocket 复用会话 Cookie 并校验 Origin，注销、失效、改密、重启或恢复出厂时关闭关联连接。状态变更 HTTP 请求必须带 CSRF token；敏感响应不缓存，WebUI 使用限制性 CSP 和本地打包资源。设备记录有界本地安全审计，重启/时钟不可信时使用启动标识与单调时间，不记录凭据或客户端 IP；恢复出厂清空审计。所有目标都需资源实测；ESP32-C2 若作为正式支持目标，必须先完成无 PSRAM 条件下的 TLS、认证/KDF 和资源边界实机验收。TLS 不能替代应用层认证、授权或来源校验，失败不得静默降级到常规明文管理。RED/EN 18031-1 是否适用及是否符合须由产品合规评估确认；本设计方向不构成合规声明。
-
-产品厂商对 ESP-Cockpit 专用 CA、证书签发/恢复门户、签发授权、证书运营及至少 15 年离线轮换/恢复支持承担端到端责任，可委托执行但不转移责任。ESP-Cockpit 组件首版负责 HTTPS/WSS TLS 和通用设备身份 API：设备本地私钥/CSR 生成、CSR 导出、签发证书导入与身份/用途/有效期校验及原子更新；不运行 CA、不做签发决策、不访问厂商门户，也不导出设备私钥。工厂分配并绑定唯一 factory ID，设备本地生成私钥和 CSR，厂商签发，工厂安装证书；制造商负责生成并交付标签/二维码；若产品应用提供 SoftAP 配网，还负责交付与设备绑定的唯一 SoftAP 凭据。厂商负责根证书分发、恢复码/门户、授权服务点/RMA 流程。组件通用证书 API 由组件首版验收；真实 PKI、工厂和恢复责任链在产品试产/发布验收中验证。首次使用信任流程须在试产中端到端验证；只有实测通过的系统与浏览器组合才承诺正式支持。
+传输安全、PKI 生命周期责任链、首次信任建立、管理员初始化、会话保护及本地安全审计的规范性要求见[需求与初步设计第 5.3 节](./esp-cockpit-requirements.md#53-安全性)；网络管理模式与所有权边界见[网络生命周期设计补充](./esp-cockpit-network-lifecycle.md)。
 
 ## 2. 分层与寻址建议
 
-目标路径作为参数传递，而不是将每一种属性/命令都编码进 JSON-RPC `method` 名称：
+目标路径作为参数传递，而不是将每一种属性/命令都编码进 JSON-RPC `method` 名称（线协议中完整 Cluster 标识为 `endpoint/cluster`）：
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 31,
-  "method": "im.read",
+  "id": "31",
+  "method": "esp_cockpit.read",
   "params": {
-    "paths": [
+    "items": [
       {
-        "endpoint": "device",
-        "cluster": "switch",
-        "attribute": "on_off"
+        "clusterId": "device/switch",
+        "attributeId": "on_off"
       }
     ]
   }
@@ -117,24 +114,27 @@ JSON-RPC 响应必须在 `result` 和 `error` 之间二选一。首版不接受 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 32,
+  "id": "32",
   "result": {
-    "results": [
+    "items": [
       {
         "path": {
-          "endpoint": "device",
-          "cluster": "switch",
-          "attribute": "on_off"
+          "clusterId": "device/switch",
+          "attributeId": "on_off"
         },
-        "status": "success"
+        "status": "ok",
+        "version": "12"
       },
       {
         "path": {
-          "endpoint": "device",
-          "cluster": "level",
-          "attribute": "current_level"
+          "clusterId": "device/level",
+          "attributeId": "current_level"
         },
-        "status": "constraint_error"
+        "status": "error",
+        "error": {
+          "code": 1001,
+          "message": "Target level out of allowed range"
+        }
       }
     ]
   }
@@ -151,7 +151,7 @@ JSON-RPC 响应必须在 `result` 和 `error` 之间二选一。首版不接受 
 
 JSON-RPC `id` 只用于请求/响应关联，不作为幂等键。首版不提供通用去重缓存或“恰好一次”保证；每个 Command 必须声明是否可安全重试，客户端不得盲目重放非幂等操作。
 
-应用 Read/Write/Invoke 回调经有界队列投递到单一执行上下文串行运行；回调须短时、非阻塞，长操作异步化。队列满时明确返回忙碌/资源不足。长操作可创建设备级 Operation，返回 ID、状态和可选进度；首版只定义 `running`、`succeeded`、`failed`，不提供通用取消语义，需要取消的操作由该操作单独定义取消接口。任一有效管理员会话可查询，登出/断线不自动取消；Operation 仅驻留 RAM，重启后旧 ID 变为未知，客户端须重新读取设备实际状态。活动任务与历史记录均有界；达到活动任务上限时拒绝新任务，终态记录可淘汰，不丢弃活动任务。具体容量由目标板资源测试确定。
+应用 Read/Write/Invoke 回调经有界队列投递到单一执行上下文串行运行；回调须短时、非阻塞，长操作异步化。队列满时明确返回忙碌/资源不足。长操作可创建设备级 Operation，返回 ID、状态和可选进度；首版状态固定为 queued、running、succeeded、failed，不提供通用取消语义，需要取消的操作由该操作单独定义取消接口。任一有效管理员会话可查询，登出/断线不自动取消；Operation 仅驻留 RAM，重启后旧 ID 变为未知，客户端须重新读取设备实际状态。活动任务与历史记录均有界；达到活动任务上限时拒绝新任务，终态记录可淘汰，不丢弃活动任务。具体容量由目标板资源测试确定。
 
 ## 5. 属性写入与命令调用边界
 

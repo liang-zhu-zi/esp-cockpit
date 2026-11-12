@@ -23,6 +23,9 @@
 | [需求与初步设计](./esp-cockpit-requirements.md) | 需求基线 | 首版产品范围、质量/安全要求、整体验收门槛及尚待决策事项。协议、网络生命周期的具体行为由对应专门文档负责 |
 | [最小互操作基线](./esp-cockpit-interoperability-baseline.md) | 冻结规范 | 首版核心 RPC/通知字段、稳定错误码与 HTTP 映射、认证/初始化流程、公共 C 注册/回调 API，以及资源上限字段名、单位和语义 |
 | [JSON-RPC 协议契约](./esp-cockpit-json-rpc-contract.md) | 补充规范 | 冻结基线未穷尽的 JSON-RPC 客户端行为、兼容性及协议细节。若与冻结基线冲突，以冻结基线为准 |
+| [公共 C API 补充规范](./esp-cockpit-c-api-supplement.md) | 补充规范 | 冻结基线未展开的根配置结构体、网络生命周期控制、安全窗口、设备证书轮换/恢复、可信时间、审计及维护锁 C API 声明 |
+| [设备身份、恢复与审计线协议契约](./esp-cockpit-identity-audit-contract.md) | 补充规范 | 设备证书状态/CSR/导入、受限本地身份恢复 HTTP 端点及安全审计日志分页查询线协议契约 |
+| [通用 WebUI 交互与 Schema 渲染补充规范](./esp-cockpit-webui-rendering-contract.md) | 补充规范 | 通用 WebUI 启动加载状态机、Schema 控件映射、多路径版本冲突草稿合并、长操作轮询、i18n 及 WCAG 2.2 AA 渲染规则 |
 | [网络生命周期设计补充](./esp-cockpit-network-lifecycle.md) | 设计说明 | 网络资源所有权、生命周期模型及其设计约束；非冻结基线列出的公共 C API 字段/签名不得由本文改写 |
 | [交互模型与 JSON-RPC 映射](./esp-cockpit-interaction-model.md) | 设计说明 | Matter-inspired 交互模型的概念、理由和语义解释；线协议字段及可执行客户端规则以协议规范为准 |
 | [组件支持矩阵](./esp-cockpit-support-matrix.md) | 验收记录 | 首版逐板卡/网络配置的实际构建、功能、安全、性能结果和产品级信任验收证据 |
