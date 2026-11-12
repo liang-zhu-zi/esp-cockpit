@@ -1,4 +1,15 @@
+<!-- omit in toc -->
 # ESP-Cockpit JSON-RPC 协议契约
+
+- [1. 协议定位与版本](#1-协议定位与版本)
+- [2. 方法组织与命名空间](#2-方法组织与命名空间)
+- [3. 参数、响应与兼容性](#3-参数响应与兼容性)
+- [4. HTTP 与 WebSocket](#4-http-与-websocket)
+- [5. 能力发现与 Schema](#5-能力发现与-schema)
+- [6. 资源上限与超限行为](#6-资源上限与超限行为)
+- [7. 版本兼容规则](#7-版本兼容规则)
+- [8. 冻结范围与剩余验收](#8-冻结范围与剩余验收)
+
 
 > 文档状态：补充规范。本文规定冻结基线未穷尽的 JSON-RPC 客户端行为、扩展和兼容细节；核心字段、通知、错误码、HTTP 映射及 `limits` 字段名/单位以[冻结互操作基线](./esp-cockpit-interoperability-baseline.md)为唯一权威来源。生产配置数值和实现状态见[组件支持矩阵](./esp-cockpit-support-matrix.md)。文档治理规则见[文档地图](./esp-cockpit-documentation-guide.md)。
 
